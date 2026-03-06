@@ -9,12 +9,18 @@ def parse_region_from_filename(filename: str, class_name: str) -> str:
     Извлекает регион из имени файла: cortex, cortex_left, cortex_right,
     striatum_left, striatum_right, cerebellum_left, cerebellum_right.
     """
-    # Паттерн: {region}_{class}_... — всё до _endo, _control или _exo
     for c in ("endo", "control", "exo"):
         suffix = f"_{c}_"
         if suffix in filename:
             return filename.split(suffix)[0]
     return "unknown"
+
+
+def parse_center_1500(filename: str) -> bool:
+    """
+    Центральный пиксель: True если center1500, False если center2900.
+    """
+    return "center1500" in filename
 
 
 def load_spectrum_file(filepath: Path) -> pd.DataFrame:
@@ -89,9 +95,16 @@ def build_dataset(
                 all_labels.extend([class_name] * n)
 
                 region = parse_region_from_filename(fp.name, class_name)
+                center_1500 = parse_center_1500(fp.name)
                 groups = df.groupby(["X", "Y"], sort=False)
                 for (x, y), _ in groups:
-                    all_meta.append({"file": str(fp.name), "region": region, "X": x, "Y": y})
+                    all_meta.append({
+                        "file": str(fp.name),
+                        "region": region,
+                        "center_1500": center_1500,
+                        "X": x,
+                        "Y": y,
+                    })
 
             except Exception as e:
                 print(f"Ошибка при чтении {fp}: {e}")
@@ -106,6 +119,7 @@ def build_dataset(
     df_out = pd.DataFrame(X, columns=wave_cols)
     df_out.insert(0, "class", y)
     df_out.insert(1, "region", meta["region"].values)
+    df_out.insert(2, "center_1500", meta["center_1500"].values)
     df_out["source_file"] = meta["file"].values
     df_out["X"] = meta["X"].values
     df_out["Y"] = meta["Y"].values
@@ -113,7 +127,7 @@ def build_dataset(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df_out.to_csv(output_path, index=False)
     print(f"\nДатасет сохранён: {output_path}")
-    print(f"Размер: {df_out.shape[0]} образцов, {df_out.shape[1]-5} признаков (волновые числа)")
+    print(f"Размер: {df_out.shape[0]} образцов, {df_out.shape[1]-6} признаков (волновые числа)")
     print(f"Классы: {pd.Series(y).value_counts().to_dict()}")
 
 
