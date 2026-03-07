@@ -33,9 +33,11 @@ def load_models():
     cat_model.load_model(str(MODEL_DIR / "catboost.cbm"))
     ridge_model = meta.get("model_ridge")
     sgd_model = meta.get("model_sgd")
+    class_weight_stack = np.array(meta.get("class_weight_stack", [1.0, 1.0, 1.0]))
     _models = {
         "meta_learner": meta["meta_learner"],
         "label_encoder": meta["label_encoder"],
+        "class_weight_stack": class_weight_stack,
         "feature_columns": meta["feature_columns"],
         "wave_cols": meta["wave_cols"],
         "savgol_window": meta.get("savgol_window", 11),
@@ -139,7 +141,8 @@ def predict_from_spectrum(wave_upload, intensity_upload, region: str, center_150
         stack_list.append(m["sgd_model"].predict_proba(X_row))
     stack = np.hstack(stack_list)
     meta_proba = m["meta_learner"].predict_proba(stack)[0]
-    pred_num = int(np.argmax(meta_proba))
+    w = m.get("class_weight_stack", np.ones(3))
+    pred_num = int(np.argmax(meta_proba * w))
     class_name = m["label_encoder"].inverse_transform([pred_num])[0]
     return class_name, meta_proba, list(m["label_encoder"].classes_)
 
