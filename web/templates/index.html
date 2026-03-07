@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Классификация по рамановскому спектру</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --error: #f85149;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container { max-width: 520px; margin: 0 auto; }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    label { display: block; margin-bottom: 0.35rem; font-size: 0.9rem; color: var(--muted); }
+    input[type="file"],
+    select {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    select { cursor: pointer; }
+    .row { margin-bottom: 1rem; }
+    button {
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.9; }
+    .error { color: var(--error); margin-top: 1rem; }
+    .result {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: var(--bg);
+      border-radius: 8px;
+      border-left: 4px solid var(--success);
+    }
+    .result .class { font-size: 1.25rem; font-weight: 600; color: var(--success); }
+    .result .proba { font-size: 0.9rem; color: var(--muted); margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Классификация по рамановскому спектру</h1>
+    <p class="subtitle">Загрузите файл с колонками Wave и Intensity, выберите регион мозга — модель определит группу образца (контроль, эндогенная или экзогенная экспрессия HSP70).</p>
+
+    <form method="post" enctype="multipart/form-data" class="card">
+      <div class="row">
+        <label for="file">Файл с данными (табуляция или пробелы: Wave, Intensity)</label>
+        <input type="file" name="file" id="file" accept=".txt,.csv,.tsv" required>
+      </div>
+      <div class="row">
+        <label for="region">Регион мозга</label>
+        <select name="region" id="region" required>
+          <option value="">— выберите регион —</option>
+          {% for r in regions %}
+          <option value="{{ r }}">{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="row">
+        <label for="center">Центр (пиксель)</label>
+        <select name="center" id="center">
+          <option value="1500">1500</option>
+          <option value="2900">2900</option>
+        </select>
+      </div>
+      <button type="submit">Определить группу</button>
+    </form>
+
+    {% if error %}
+    <p class="error">{{ error }}</p>
+    {% endif %}
+
+    {% if result %}
+    <div class="card result">
+      <div class="class">Группа: {{ result.class }}</div>
+      <div class="proba">
+        Вероятности: {% for c, p in result.proba.items() %}{{ c }}: {{ "%.2f"|format(p) }}{% if not loop.last %}, {% endif %}{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</body>
+</html>
