@@ -1,7 +1,3 @@
-"""
-Веб-сервис предсказания класса образца по рамановскому спектру.
-Модели загружаются из нативных форматов (model_export/) один раз при старте — ответ быстрый.
-"""
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -11,23 +7,20 @@ from flask import Flask, request, render_template
 from werkzeug.exceptions import RequestEntityTooLarge
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024  # 64 MB
+app.config["MAX_CONTENT_LENGTH"] = 64 * 1024 * 1024
 
 MODEL_DIR = Path(__file__).resolve().parent.parent / "model_export"
 _models = None
 
 
 def load_models():
-    """Загрузка моделей один раз при первом запросе (нативные форматы — без pickle)."""
     global _models
     if _models is not None:
         return _models
     if not MODEL_DIR.exists():
         return None
     meta = joblib.load(MODEL_DIR / "meta.joblib")
-    # LightGBM: нативный формат
     lgb_booster = lgb.Booster(model_file=str(MODEL_DIR / "lgbm.txt"))
-    # CatBoost: нативный .cbm
     from catboost import CatBoostClassifier
     cat_model = CatBoostClassifier()
     cat_model.load_model(str(MODEL_DIR / "catboost.cbm"))
@@ -62,7 +55,6 @@ REGIONS = [
 
 
 def parse_spectrum_file(stream):
-    """Парсит файл с колонками #Wave и #Intensity (таб или пробелы)."""
     df = pd.read_csv(
         stream,
         sep=r"\s+",
@@ -83,7 +75,6 @@ def parse_spectrum_file(stream):
 
 
 def preprocess_spectrum(intensities, wave_cols, savgol_window, savgol_poly):
-    """Та же предобработка, что в ноутбуке: базовая линия, Savitzky-Golay, L2-норма."""
     X = np.array(intensities, dtype=np.float64).reshape(1, -1)
     baseline = X.min(axis=1, keepdims=True)
     X = X - baseline
@@ -100,7 +91,6 @@ def preprocess_spectrum(intensities, wave_cols, savgol_window, savgol_poly):
 
 
 def predict_from_spectrum(wave_upload, intensity_upload, region: str, center_1500: bool, m):
-    """Интерполяция спектра на сетку модели, предобработка и предсказание."""
     feature_columns = m["feature_columns"]
     wave_cols = m["wave_cols"]
     wave_model = np.array([float(c.replace("wave_", "")) for c in wave_cols])
@@ -125,7 +115,6 @@ def predict_from_spectrum(wave_upload, intensity_upload, region: str, center_150
             row[col] = 0
     X_row = pd.DataFrame([row])[feature_columns]
 
-    # Предсказания базовых моделей
     p_lgbm = m["lgb_booster"].predict(X_row)
     p_lgbm = np.atleast_2d(p_lgbm)
     p_cat = m["cat_model"].predict_proba(X_row)

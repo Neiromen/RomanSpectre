@@ -5,10 +5,6 @@ import numpy as np
 
 
 def parse_region_from_filename(filename: str, class_name: str) -> str:
-    """
-    Извлекает регион из имени файла: cortex, cortex_left, cortex_right,
-    striatum_left, striatum_right, cerebellum_left, cerebellum_right.
-    """
     for c in ("endo", "control", "exo"):
         suffix = f"_{c}_"
         if suffix in filename:
@@ -17,9 +13,6 @@ def parse_region_from_filename(filename: str, class_name: str) -> str:
 
 
 def parse_center_1500(filename: str) -> bool:
-    """
-    Центральный пиксель: True если center1500, False если center2900.
-    """
     return "center1500" in filename
 
 
