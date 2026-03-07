@@ -6,7 +6,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import joblib
-import xgboost as xgb
 import lightgbm as lgb
 from flask import Flask, request, render_template
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -26,15 +25,14 @@ def load_models():
     if not MODEL_DIR.exists():
         return None
     meta = joblib.load(MODEL_DIR / "meta.joblib")
-    # XGBoost: нативный JSON — быстро, без предупреждений
-    xgb_booster = xgb.Booster()
-    xgb_booster.load_model(str(MODEL_DIR / "xgb.json"))
     # LightGBM: нативный формат
     lgb_booster = lgb.Booster(model_file=str(MODEL_DIR / "lgbm.txt"))
     # CatBoost: нативный .cbm
     from catboost import CatBoostClassifier
     cat_model = CatBoostClassifier()
     cat_model.load_model(str(MODEL_DIR / "catboost.cbm"))
+    ridge_model = meta.get("model_ridge")
+    sgd_model = meta.get("model_sgd")
     _models = {
         "meta_learner": meta["meta_learner"],
         "label_encoder": meta["label_encoder"],
@@ -42,9 +40,10 @@ def load_models():
         "wave_cols": meta["wave_cols"],
         "savgol_window": meta.get("savgol_window", 11),
         "savgol_poly": meta.get("savgol_poly", 3),
-        "xgb_booster": xgb_booster,
         "lgb_booster": lgb_booster,
         "cat_model": cat_model,
+        "ridge_model": ridge_model,
+        "sgd_model": sgd_model,
     }
     return _models
 
@@ -124,15 +123,21 @@ def predict_from_spectrum(wave_upload, intensity_upload, region: str, center_150
             row[col] = 0
     X_row = pd.DataFrame([row])[feature_columns]
 
-    # Предсказания в нативных API (без лишнего pickle)
+    # Предсказания базовых моделей
     p_lgbm = m["lgb_booster"].predict(X_row)
     p_lgbm = np.atleast_2d(p_lgbm)
-    dmat = xgb.DMatrix(X_row, feature_names=feature_columns)
-    p_xgb = m["xgb_booster"].predict(dmat, output_margin=False)
-    p_xgb = np.atleast_2d(np.asarray(p_xgb))
     p_cat = m["cat_model"].predict_proba(X_row)
-
-    stack = np.hstack([p_lgbm, p_xgb, p_cat])
+    stack_list = [p_lgbm, p_cat]
+    if m.get("ridge_model") is not None:
+        r = m["ridge_model"]
+        d = r.decision_function(X_row)
+        if d.ndim == 1:
+            d = d.reshape(-1, 1)
+        e = np.exp(d - d.max(axis=1, keepdims=True))
+        stack_list.append(e / e.sum(axis=1, keepdims=True))
+    if m.get("sgd_model") is not None:
+        stack_list.append(m["sgd_model"].predict_proba(X_row))
+    stack = np.hstack(stack_list)
     meta_proba = m["meta_learner"].predict_proba(stack)[0]
     pred_num = int(np.argmax(meta_proba))
     class_name = m["label_encoder"].inverse_transform([pred_num])[0]

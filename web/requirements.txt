@@ -4,6 +4,5 @@ pandas
 scikit-learn
 joblib
 lightgbm
-xgboost
 catboost
 scipy
